@@ -1,128 +1,123 @@
 # Ore lavorate
 
-PWA per registrare le sessioni di lavoro, calcolare il compenso con maggiorazioni
-e produrre l'elenco ore da incollare in fattura.
+A PWA for logging work sessions, computing pay with surcharges, and producing a
+monthly summary to paste into an invoice.
 
-**I dati non lasciano mai il dispositivo.** Nessun server, nessun account, nessuna
-sincronizzazione: le sessioni vivono in IndexedDB, nel browser che le ha scritte.
+**Data never leaves the device.** No server, no account, no sync: sessions live in
+IndexedDB, in the browser that wrote them.
 
----
-
-## Avvio
+## Setup
 
 ```bash
 npm install
-npm run dev      # sviluppo
-npm test         # test del motore di calcolo
-npm run build    # build di produzione in dist/
+npm run dev      # development server
+npm test         # calculation engine tests
+npm run build    # production build into dist/
 ```
 
-## Pubblicazione su GitHub Pages
+## Deployment
 
-Il codice deve stare online perché il telefono possa scaricarlo *la prima volta*.
-Dopo di che funziona offline: il service worker serve tutto dalla cache.
+The code has to be online so the phone can fetch it the first time. After that it
+runs offline from the service worker cache.
 
-1. Crea un repository (il nome predefinito atteso è `ore-lavorate`; se ne usi un
-   altro, il workflow lo rileva da solo).
-2. Impostazioni del repo → Pages → Source: **GitHub Actions**.
-3. `git push` su `main`. Il workflow in `.github/workflows/deploy.yml` esegue i
-   test, costruisce e pubblica.
-4. Dal telefono apri l'URL una volta, poi **Condividi → Aggiungi a schermata Home**.
+1. Push to a GitHub repository.
+2. Repo settings → Pages → Source: **GitHub Actions**.
+3. `.github/workflows/deploy.yml` runs tests, builds and deploys on every push to
+   `main`. The base path is derived from the repository name, so any name works.
+4. Open the URL once on the phone, then add it to the home screen. On iOS this
+   requires Safari.
 
-Il codice sarà pubblico, ma non contiene nulla di tuo: solo logica di calcolo.
-Se preferisci tenerlo privato, un repo privato su Netlify o Vercel dà un URL non
-indicizzato con lo stesso risultato.
+Pages on a private repository needs a paid plan; Netlify and Vercel publish from
+private repositories for free.
 
----
+Note that IndexedDB is scoped to the origin. Changing the hosting domain means a
+different origin and an empty database, so either settle the domain before logging
+real hours or move the data with a JSON backup.
 
-## Come è fatta
+## Structure
 
 ```
 src/
   lib/
-    time.js      date e orari come stringhe, durate, scavallamento mezzanotte
-    denaro.js    importi in centesimi interi
-    calc.js      motore di calcolo: sessione → giorno → periodo   ← il cuore
-    esporta.js   generazione dei testi da copiare
-    __tests__/   32 test, soprattutto sui casi limite
-  components/    interfaccia (vista giorno, calendario, form, export, impostazioni)
+    time.js      dates and times as strings, durations, midnight crossing
+    denaro.js    amounts as integer cents
+    calc.js      calculation engine: session → day → period
+    esporta.js   export text generation
+    __tests__/   32 tests, mostly edge cases
+  components/    UI (day view, calendar, session form, export, settings)
   db.js          IndexedDB
-  App.jsx        stato e navigazione
+  App.jsx        state and navigation
 ```
 
-### Tre livelli di calcolo
+## Calculation model
 
-- **Sessione**: una fascia di lavoro continua. Può scavallare la mezzanotte.
-- **Giorno**: più sessioni insieme. È il livello a cui si applica la soglia delle
-  ore giornaliere, che quindi *attraversa* le sessioni (8 h al mattino + 4 h la
-  sera = 4 h di straordinario, anche se nessuna delle due sessioni da sola supera
-  la soglia).
-- **Periodo**: l'aggregazione mensile per il report.
+Three levels:
 
-Una sessione appartiene al giorno in cui **inizia**: 19:30–01:00 del 21 ottobre è
-tutta del 21.
+- **Session** — one continuous stretch of work. May cross midnight.
+- **Day** — several sessions together. The daily hour threshold applies here, so it
+  cuts *across* sessions: two separate sessions can trigger overtime even when
+  neither exceeds the threshold alone.
+- **Period** — monthly aggregation for the report.
 
-### Due scelte tecniche che evitano bug classici
+A session belongs to the day it **starts** in, even when it ends after midnight.
 
-**Date e orari sono stringhe**, non oggetti `Date`. Usare timestamp significa
-trascinarsi dietro fuso orario e ora legale, con bug che compaiono solo nei due
-weekend di marzo e ottobre.
+### Two decisions that avoid classic bugs
 
-**Gli importi sono interi in centesimi.** In virgola mobile `0.1 + 0.2 !== 0.3`:
-su una fattura diventa un centesimo di scarto inspiegabile. L'arrotondamento
-avviene una volta sola, sul singolo segmento di calcolo.
+**Dates and times are strings**, not `Date` objects. Timestamps drag in time zones
+and DST, producing bugs that only surface on two weekends a year.
 
-### Maggiorazioni
+**Amounts are integer cents.** In floating point `0.1 + 0.2 !== 0.3`, which on an
+invoice becomes an unexplainable one-cent discrepancy. Rounding happens once, per
+calculated segment.
 
-Due cause indipendenti, impostabili:
+### Surcharges
 
-- **fuori fascia** — ore al di fuori dell'intervallo a tariffa base (es. prima
-  delle 8:00 o dopo le 20:00);
-- **straordinario** — ore oltre la soglia giornaliera.
+Two independent causes, both configurable:
 
-Un'ora può ricadere in entrambe. La regola di **cumulo** decide cosa succede:
+- **out of band** — hours outside the base-rate time window;
+- **overtime** — hours past the daily threshold.
 
-| Regola | +25% e +25% danno |
+An hour can fall under both. The **combination rule** decides what happens:
+
+| Rule | +25% and +25% yield |
 |---|---|
-| massima (predefinita) | +25% |
-| somma | +50% |
-| composto | +56,25% |
+| maximum (default) | +25% |
+| sum | +50% |
+| compound | +56.25% |
 
-Scegli quella concordata con il committente. Il report riporta sempre in testa i
-parametri usati, così il calcolo resta verificabile a distanza di mesi.
+Pick the one agreed with the client. The report always states the parameters used,
+so a calculation stays verifiable months later.
 
----
+Overtime is chronologically the **last** part of the day, not an abstract quantity
+subtracted from the total.
 
 ## Export
 
-Tre formati, tutti con un pulsante di copia:
+Three formats, each with a copy button:
 
-1. **Elenco ore** — il formato per la fattura:
+1. **Hours list** — the invoice format, one block per day:
    ```
-   21/10/2026 (C.P. Fabrizio Frizzi + Teulada)
-   Ore lavorate: 12 (9:00-17:00 + 19:30-23:30)
-   Mansione: P
+   DD/MM/YYYY (location)
+   Ore lavorate: H (HH:MM-HH:MM)
+   Mansione: code
    ```
-2. **Compensi** — il calcolo scomposto giorno per giorno, con i parametri in testa.
-3. **Tabella** — separata da tabulazioni, si incolla in Numbers, Excel o Fogli Google.
-
----
+   Multiple sessions on one day are merged with `+`.
+2. **Pay report** — the calculation broken down per day, parameters on top.
+3. **Table** — tab-separated, pastes straight into a spreadsheet.
 
 ## Backup
 
-I dati stanno nello storage del browser. Se cancelli i dati del sito, cambi
-telefono o iOS libera spazio, spariscono. L'app chiede al browser lo storage
-persistente, ma su iOS non è garantito.
+Data sits in browser storage. Clearing site data, switching devices, or iOS
+reclaiming space wipes it. The app requests persistent storage, but iOS gives no
+guarantee.
 
-**Scarica il backup JSON a fine mese**, insieme al report. È in fondo alla
-schermata Export, con il ripristino accanto.
+Download the JSON backup alongside the monthly report. Restore is next to it in the
+export screen.
 
----
+## Known limits
 
-## Limiti noti
-
-- Le impostazioni sono un set unico, applicato anche ai mesi passati. Se cambi la
-  tariffa, i report precedenti cambiano. Il passo successivo naturale è congelare
-  i parametri nella sessione al momento del salvataggio.
-- Le pause non sono gestite: 12:00–16:00 vale 4 ore piene.
-- Le sessioni sovrapposte vengono segnalate ma contate entrambe.
+- Settings are a single set applied retroactively, so changing the rate changes past
+  reports. The natural next step is freezing the parameters into each session on
+  save; the engine already takes settings as an argument.
+- Breaks are not modelled: a session counts in full.
+- Overlapping sessions are flagged but counted twice.
