@@ -59,7 +59,7 @@ export default function FormSessione({ sessione, data, luoghiNoti, mansioniNote,
         <div className="campo">
           <label htmlFor="luogo">Luogo</label>
           <input id="luogo" type="text" value={luogo} list="luoghi" autoComplete="off"
-                 placeholder="es. Teulada" onChange={e => setLuogo(e.target.value)} />
+                 onChange={e => setLuogo(e.target.value)} />
           <datalist id="luoghi">
             {luoghiNoti.map(l => <option key={l} value={l} />)}
           </datalist>
@@ -68,7 +68,7 @@ export default function FormSessione({ sessione, data, luoghiNoti, mansioniNote,
         <div className="campo">
           <label htmlFor="mansione">Mansione <span className="aiuto">— sigla libera, solo descrittiva</span></label>
           <input id="mansione" type="text" value={mansione} list="mansioni" autoComplete="off"
-                 placeholder="es. P" onChange={e => setMansione(e.target.value)} />
+                 onChange={e => setMansione(e.target.value)} />
           <datalist id="mansioni">
             {mansioniNote.map(m => <option key={m} value={m} />)}
           </datalist>

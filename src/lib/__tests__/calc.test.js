@@ -107,8 +107,8 @@ describe('calcolo del giorno', () => {
 
   it('la soglia giornaliera attraversa due sessioni separate', () => {
     const g = calcolaGiorno([
-      S('a', '09:00', '17:00', 'C.P. Fabrizio Frizzi'),   // 8 h → esaurisce la soglia
-      S('b', '19:30', '23:30', 'Teulada'),                // 4 h → tutte straordinario
+      S('a', '09:00', '17:00', 'Luogo A'),   // 8 h → esaurisce la soglia
+      S('b', '19:30', '23:30', 'Luogo B'),                // 4 h → tutte straordinario
     ], imp)
     expect(g.minutiTotali).toBe(720)
     expect(g.minutiStraordinari).toBe(240)
@@ -164,11 +164,11 @@ describe('calcolo del giorno', () => {
 
 describe('periodo', () => {
   const giorni = [
-    { data: '2026-10-07', sessioni: [S('a', '09:00', '17:00', 'C.P. Fabrizio Frizzi', 'P', '2026-10-07')] },
-    { data: '2026-10-10', sessioni: [S('b', '05:00', '13:00', 'Teulada', 'T', '2026-10-10')] },
+    { data: '2026-10-07', sessioni: [S('a', '09:00', '17:00', 'Luogo A', 'P', '2026-10-07')] },
+    { data: '2026-10-10', sessioni: [S('b', '05:00', '13:00', 'Luogo B', 'T', '2026-10-10')] },
     { data: '2026-10-21', sessioni: [
-      S('c', '09:00', '17:00', 'C.P. Fabrizio Frizzi', 'P', '2026-10-21'),
-      S('d', '19:30', '23:30', 'Teulada', 'P', '2026-10-21'),
+      S('c', '09:00', '17:00', 'Luogo A', 'P', '2026-10-21'),
+      S('d', '19:30', '23:30', 'Luogo B', 'P', '2026-10-21'),
     ] },
   ]
 
@@ -176,7 +176,7 @@ describe('periodo', () => {
     const p = calcolaPeriodo(giorni, imp)
     expect(p.minutiTotali).toBe(480 + 480 + 720)
     expect(p.giorni).toHaveLength(3)
-    expect(p.perLuogo.map(l => l.luogo).sort()).toEqual(['C.P. Fabrizio Frizzi', 'Teulada'])
+    expect(p.perLuogo.map(l => l.luogo).sort()).toEqual(['Luogo A', 'Luogo B'])
   })
 
   it('ignora i giorni senza sessioni', () => {
@@ -188,10 +188,10 @@ describe('periodo', () => {
 describe('elenco ore da copiare', () => {
   it('riproduce il formato richiesto', () => {
     const testo = elencoOre([
-      { data: '2026-10-07', sessioni: [S('a', '09:00', '17:00', 'C.P. Fabrizio Frizzi', 'P', '2026-10-07')] },
+      { data: '2026-10-07', sessioni: [S('a', '09:00', '17:00', 'Luogo A', 'P', '2026-10-07')] },
     ])
     expect(testo).toBe(
-      '07/10/2026 (C.P. Fabrizio Frizzi)\n' +
+      '07/10/2026 (Luogo A)\n' +
       'Ore lavorate: 8 (9:00-17:00)\n' +
       'Mansione: P'
     )
@@ -200,12 +200,12 @@ describe('elenco ore da copiare', () => {
   it('unisce più sessioni dello stesso giorno con il +', () => {
     const testo = elencoOre([
       { data: '2026-10-21', sessioni: [
-        S('c', '09:00', '17:00', 'C.P. Fabrizio Frizzi', 'P', '2026-10-21'),
-        S('d', '19:30', '23:30', 'Teulada', 'P', '2026-10-21'),
+        S('c', '09:00', '17:00', 'Luogo A', 'P', '2026-10-21'),
+        S('d', '19:30', '23:30', 'Luogo B', 'P', '2026-10-21'),
       ] },
     ])
     expect(testo).toBe(
-      '21/10/2026 (C.P. Fabrizio Frizzi + Teulada)\n' +
+      '21/10/2026 (Luogo A + Luogo B)\n' +
       'Ore lavorate: 12 (9:00-17:00 + 19:30-23:30)\n' +
       'Mansione: P'
     )
@@ -214,11 +214,11 @@ describe('elenco ore da copiare', () => {
   it('ordina le sessioni per orario di inizio', () => {
     const testo = elencoOre([
       { data: '2026-10-21', sessioni: [
-        S('d', '19:30', '23:30', 'Teulada', 'P', '2026-10-21'),
-        S('c', '09:00', '17:00', 'C.P. Fabrizio Frizzi', 'P', '2026-10-21'),
+        S('d', '19:30', '23:30', 'Luogo B', 'P', '2026-10-21'),
+        S('c', '09:00', '17:00', 'Luogo A', 'P', '2026-10-21'),
       ] },
     ])
-    expect(testo).toContain('(C.P. Fabrizio Frizzi + Teulada)')
+    expect(testo).toContain('(Luogo A + Luogo B)')
     expect(testo).toContain('(9:00-17:00 + 19:30-23:30)')
   })
 })

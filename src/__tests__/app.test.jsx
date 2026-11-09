@@ -29,11 +29,11 @@ describe('App', () => {
 
     fireEvent.change(screen.getByLabelText('Inizio'), { target: { value: '09:00' } })
     fireEvent.change(screen.getByLabelText('Fine'), { target: { value: '21:00' } })
-    fireEvent.change(screen.getByLabelText('Luogo'), { target: { value: 'Teulada' } })
+    fireEvent.change(screen.getByLabelText('Luogo'), { target: { value: 'Luogo B' } })
     fireEvent.click(screen.getByText('Salva'))
 
     await waitFor(() => expect(screen.getByText('9:00–21:00')).toBeTruthy())
-    expect(screen.getByText('Teulada')).toBeTruthy()
+    expect(screen.getByText('Luogo B')).toBeTruthy()
     // 12 h con soglia a 8 h → straordinario, e 20:00–21:00 è fuori fascia
     expect(screen.getByText('straordinario')).toBeTruthy()
     expect(screen.getByText('fuori fascia')).toBeTruthy()

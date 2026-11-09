@@ -10,9 +10,9 @@ function unici(valori) {
 /**
  * Elenco ore nel formato richiesto:
  *
- *   07/10/2026 (C.P. Fabrizio Frizzi)
- *   Ore lavorate: 8 (9:00-17:00)
- *   Mansione: P
+ *   GG/MM/AAAA (luogo)
+ *   Ore lavorate: H (HH:MM-HH:MM)
+ *   Mansione: sigla
  */
 export function elencoOre(giorni) {
   const righe = []
