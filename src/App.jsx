@@ -19,17 +19,25 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [form, setForm] = useState(null)   // null | {} (new) | session
+  const [loadError, setLoadError] = useState(null)
 
   useEffect(() => {
     (async () => {
-      const [stored, storedSettings] = await Promise.all([
-        db.allSessions(),
-        db.readConfig('settings'),
-      ])
-      setSessions(stored)
-      if (storedSettings) setSettings({ ...DEFAULT_SETTINGS, ...storedSettings })
-      setReady(true)
-      db.requestPersistence()
+      try {
+        const [stored, storedSettings] = await Promise.all([
+          db.allSessions(),
+          db.readConfig('settings'),
+        ])
+        setSessions(stored)
+        if (storedSettings) setSettings({ ...DEFAULT_SETTINGS, ...storedSettings })
+        db.requestPersistence()
+      } catch (error) {
+        // A failure here used to leave the screen blank forever. Render the
+        // app anyway and say what happened.
+        setLoadError(error)
+      } finally {
+        setReady(true)
+      }
     })()
   }, [])
 
@@ -105,6 +113,13 @@ export default function App() {
           </button>
         ) : <div style={{ width: 42 }} />}
       </div>
+
+      {loadError && (
+        <div className="notice" style={{ margin: '0 16px 12px' }}>
+          Impossibile leggere i dati salvati ({loadError.message}). Le sessioni di
+          questa sessione di lavoro non verranno salvate.
+        </div>
+      )}
 
       {view === 'day' && (
         <DayView

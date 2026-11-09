@@ -4,8 +4,12 @@
 // the app insists on the JSON backup.
 
 const DB_NAME = 'ore-lavorate'
-const DB_VERSION = 1
+// Bumped to 2 when the store was renamed from 'sessioni' to 'sessions'.
+// Without the bump, onupgradeneeded never runs on a database that already
+// exists and every transaction fails with "not a known object store name".
+const DB_VERSION = 2
 const SESSIONS = 'sessions'
+const LEGACY_SESSIONS = 'sessioni'
 const CONFIG = 'config'
 
 let cachedDb = null
@@ -22,6 +26,11 @@ function open() {
       }
       if (!db.objectStoreNames.contains(CONFIG)) {
         db.createObjectStore(CONFIG)
+      }
+      // The old store never held anything worth keeping, so it is dropped
+      // rather than migrated.
+      if (db.objectStoreNames.contains(LEGACY_SESSIONS)) {
+        db.deleteObjectStore(LEGACY_SESSIONS)
       }
     }
     request.onsuccess = () => { cachedDb = request.result; resolve(cachedDb) }

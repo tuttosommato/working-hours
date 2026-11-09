@@ -41,7 +41,7 @@ src/
     money.js     amounts as integer cents
     calc.js      calculation engine: session → day → period
     export.js    export text generation
-    __tests__/   32 tests, mostly edge cases
+    __tests__/   calculation tests, mostly edge cases
   components/    UI (day view, calendar, session form, export, settings)
   db.js          IndexedDB
   styles.css     tokens and component styles
