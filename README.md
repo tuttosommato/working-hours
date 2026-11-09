@@ -1,5 +1,3 @@
-# Ore lavorate
-
 A PWA for logging work sessions, computing pay with surcharges, and producing a
 monthly summary to paste into an invoice.
 
