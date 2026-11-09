@@ -1,148 +1,151 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import * as db from './db.js'
-import { IMPOSTAZIONI_DEFAULT } from './lib/calc.js'
-import { oggiISO, addGiorni, etichettaMese, meseDi } from './lib/time.js'
-import VistaGiorno from './components/VistaGiorno.jsx'
-import VistaExport from './components/VistaExport.jsx'
-import VistaImpostazioni from './components/VistaImpostazioni.jsx'
-import FormSessione from './components/FormSessione.jsx'
-import Calendario, { MiniCalendario } from './components/Calendario.jsx'
+import { DEFAULT_SETTINGS } from './lib/calc.js'
+import { todayISO, addDays, monthLabel, monthOf } from './lib/time.js'
+import DayView from './components/DayView.jsx'
+import ExportView from './components/ExportView.jsx'
+import SettingsView from './components/SettingsView.jsx'
+import SessionForm from './components/SessionForm.jsx'
+import Calendar, { MiniCalendar } from './components/Calendar.jsx'
 import Menu from './components/Menu.jsx'
-import { IconaMenu } from './components/Icone.jsx'
+import { MenuIcon } from './components/Icons.jsx'
 
 export default function App() {
-  const [pronto, setPronto] = useState(false)
-  const [sessioni, setSessioni] = useState([])
-  const [imp, setImp] = useState(IMPOSTAZIONI_DEFAULT)
-  const [data, setData] = useState(oggiISO())
-  const [vista, setVista] = useState('giorno')
-  const [menuAperto, setMenu] = useState(false)
-  const [calAperto, setCal] = useState(false)
-  const [form, setForm] = useState(null)   // null | {} (nuova) | sessione
+  const [ready, setReady] = useState(false)
+  const [sessions, setSessions] = useState([])
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS)
+  const [date, setDate] = useState(todayISO())
+  const [view, setView] = useState('day')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const [form, setForm] = useState(null)   // null | {} (new) | session
 
   useEffect(() => {
     (async () => {
-      const [s, c] = await Promise.all([db.tutteLeSessioni(), db.leggiConfig('impostazioni')])
-      setSessioni(s)
-      if (c) setImp({ ...IMPOSTAZIONI_DEFAULT, ...c })
-      setPronto(true)
-      db.richiediPersistenza()
+      const [stored, storedSettings] = await Promise.all([
+        db.allSessions(),
+        db.readConfig('settings'),
+      ])
+      setSessions(stored)
+      if (storedSettings) setSettings({ ...DEFAULT_SETTINGS, ...storedSettings })
+      setReady(true)
+      db.requestPersistence()
     })()
   }, [])
 
-  const sessioniDelGiorno = useMemo(
-    () => sessioni.filter(s => s.data === data), [sessioni, data])
+  const sessionsOfDay = useMemo(
+    () => sessions.filter(s => s.date === date), [sessions, date])
 
-  const giorniConSessioni = useMemo(
-    () => new Set(sessioni.map(s => s.data)), [sessioni])
+  const daysWithSessions = useMemo(
+    () => new Set(sessions.map(s => s.date)), [sessions])
 
-  const luoghiNoti = useMemo(() => [...new Set(
-    sessioni.map(s => s.luogo).filter(Boolean))].sort(), [sessioni])
+  const knownLocations = useMemo(() => [...new Set(
+    sessions.map(s => s.location).filter(Boolean))].sort(), [sessions])
 
-  const mansioniNote = useMemo(() => [...new Set(
-    sessioni.map(s => s.mansione).filter(Boolean))].sort(), [sessioni])
+  const knownTasks = useMemo(() => [...new Set(
+    sessions.map(s => s.task).filter(Boolean))].sort(), [sessions])
 
-  const salvaSessione = useCallback(async (s) => {
-    const completa = s.id ? s : { ...s, id: db.nuovoId() }
-    await db.salvaSessione(completa)
-    setSessioni(prec => {
-      const i = prec.findIndex(x => x.id === completa.id)
-      if (i === -1) return [...prec, completa]
-      const copia = [...prec]
-      copia[i] = completa
-      return copia
+  const saveSession = useCallback(async (session) => {
+    const complete = session.id ? session : { ...session, id: db.newId() }
+    await db.saveSession(complete)
+    setSessions(previous => {
+      const index = previous.findIndex(s => s.id === complete.id)
+      if (index === -1) return [...previous, complete]
+      const copy = [...previous]
+      copy[index] = complete
+      return copy
     })
     setForm(null)
   }, [])
 
-  const eliminaSessione = useCallback(async (id) => {
-    await db.eliminaSessione(id)
-    setSessioni(prec => prec.filter(s => s.id !== id))
+  const deleteSession = useCallback(async (id) => {
+    await db.deleteSession(id)
+    setSessions(previous => previous.filter(s => s.id !== id))
     setForm(null)
   }, [])
 
-  const salvaImpostazioni = useCallback(async (nuove) => {
-    setImp(nuove)
-    await db.scriviConfig('impostazioni', nuove)
+  const saveSettings = useCallback(async (next) => {
+    setSettings(next)
+    await db.writeConfig('settings', next)
   }, [])
 
-  const ripristina = useCallback(async (dati) => {
-    await db.ripristina(dati)
-    setSessioni(dati.sessioni)
-    if (dati.impostazioni) setImp({ ...IMPOSTAZIONI_DEFAULT, ...dati.impostazioni })
+  const restore = useCallback(async (data) => {
+    await db.restore(data)
+    setSessions(data.sessions)
+    if (data.settings) setSettings({ ...DEFAULT_SETTINGS, ...data.settings })
   }, [])
 
-  // Frecce della tastiera: comode su iPad e desktop
+  // Arrow keys: handy on iPad and desktop
   useEffect(() => {
-    if (vista !== 'giorno' || form || calAperto || menuAperto) return
-    const onKey = (e) => {
-      if (e.key === 'ArrowLeft') setData(d => addGiorni(d, -1))
-      if (e.key === 'ArrowRight') setData(d => addGiorni(d, 1))
+    if (view !== 'day' || form || calendarOpen || menuOpen) return
+    const onKeyDown = (event) => {
+      if (event.key === 'ArrowLeft') setDate(d => addDays(d, -1))
+      if (event.key === 'ArrowRight') setDate(d => addDays(d, 1))
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [vista, form, calAperto, menuAperto])
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [view, form, calendarOpen, menuOpen])
 
-  if (!pronto) return <div className="app" />
+  if (!ready) return <div className="app" />
 
   return (
     <div className="app">
-      <div className="barra">
-        <button className="icona-btn" onClick={() => setMenu(true)} aria-label="Apri il menu">
-          <IconaMenu />
+      <div className="bar">
+        <button className="icon-btn" onClick={() => setMenuOpen(true)} aria-label="Apri il menu">
+          <MenuIcon />
         </button>
 
-        <span className="barra-titolo">
-          {vista === 'giorno' ? '' : vista === 'export' ? 'Export e report' : 'Impostazioni'}
+        <span className="bar-title">
+          {view === 'day' ? '' : view === 'export' ? 'Export e report' : 'Impostazioni'}
         </span>
 
-        {vista === 'giorno' ? (
-          <button onClick={() => setCal(true)} aria-label={`Calendario di ${etichettaMese(meseDi(data))}`}>
-            <MiniCalendario dataCorrente={data} giorniConSessioni={giorniConSessioni} />
+        {view === 'day' ? (
+          <button onClick={() => setCalendarOpen(true)} aria-label={`Calendario di ${monthLabel(monthOf(date))}`}>
+            <MiniCalendar currentDate={date} daysWithSessions={daysWithSessions} />
           </button>
         ) : <div style={{ width: 42 }} />}
       </div>
 
-      {vista === 'giorno' && (
-        <VistaGiorno
-          data={data}
-          sessioni={sessioniDelGiorno}
-          imp={imp}
-          onApriForm={setForm}
-          onCambiaGiorno={(n) => setData(d => addGiorni(d, n))}
+      {view === 'day' && (
+        <DayView
+          date={date}
+          sessions={sessionsOfDay}
+          settings={settings}
+          onOpenForm={setForm}
+          onChangeDay={(n) => setDate(d => addDays(d, n))}
         />
       )}
 
-      {vista === 'export' && (
-        <VistaExport sessioni={sessioni} imp={imp} onRipristina={ripristina} />
+      {view === 'export' && (
+        <ExportView sessions={sessions} settings={settings} onRestore={restore} />
       )}
 
-      {vista === 'impostazioni' && (
-        <VistaImpostazioni imp={imp} onSalva={salvaImpostazioni} />
+      {view === 'settings' && (
+        <SettingsView settings={settings} onSave={saveSettings} />
       )}
 
-      {menuAperto && (
-        <Menu vista={vista} onVista={setVista} onChiudi={() => setMenu(false)} />
+      {menuOpen && (
+        <Menu view={view} onView={setView} onClose={() => setMenuOpen(false)} />
       )}
 
-      {calAperto && (
-        <Calendario
-          dataCorrente={data}
-          giorniConSessioni={giorniConSessioni}
-          onScegli={setData}
-          onChiudi={() => setCal(false)}
+      {calendarOpen && (
+        <Calendar
+          currentDate={date}
+          daysWithSessions={daysWithSessions}
+          onPick={setDate}
+          onClose={() => setCalendarOpen(false)}
         />
       )}
 
       {form && (
-        <FormSessione
-          sessione={form}
-          data={data}
-          luoghiNoti={luoghiNoti}
-          mansioniNote={mansioniNote}
-          onSalva={salvaSessione}
-          onElimina={eliminaSessione}
-          onChiudi={() => setForm(null)}
+        <SessionForm
+          session={form}
+          date={date}
+          knownLocations={knownLocations}
+          knownTasks={knownTasks}
+          onSave={saveSession}
+          onDelete={deleteSession}
+          onClose={() => setForm(null)}
         />
       )}
     </div>

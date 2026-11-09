@@ -38,14 +38,18 @@ real hours or move the data with a JSON backup.
 src/
   lib/
     time.js      dates and times as strings, durations, midnight crossing
-    denaro.js    amounts as integer cents
+    money.js     amounts as integer cents
     calc.js      calculation engine: session → day → period
-    esporta.js   export text generation
+    export.js    export text generation
     __tests__/   32 tests, mostly edge cases
   components/    UI (day view, calendar, session form, export, settings)
   db.js          IndexedDB
+  styles.css     tokens and component styles
   App.jsx        state and navigation
 ```
+
+Identifiers and comments are in English. The interface strings and the exported
+text stay in Italian, because they end up on an invoice.
 
 ## Calculation model
 

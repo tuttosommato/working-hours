@@ -1,224 +1,224 @@
 import { describe, it, expect } from 'vitest'
-import { calcolaGiorno, calcolaPeriodo, inFascia, maggiorazione, IMPOSTAZIONI_DEFAULT } from '../calc.js'
-import { span, durataMin, oreDecimali, giorniDelMese } from '../time.js'
-import { aCentesimi, daCentesimi, euro } from '../denaro.js'
-import { elencoOre } from '../esporta.js'
+import { computeDay, computePeriod, inBand, surcharge, DEFAULT_SETTINGS } from '../calc.js'
+import { span, durationMin, decimalHours, daysOfMonth } from '../time.js'
+import { toCents, fromCents, formatEuro } from '../money.js'
+import { hoursList } from '../export.js'
 
-const imp = { ...IMPOSTAZIONI_DEFAULT } // 20,00 €/h · 8:00-20:00 +25% · max 8h +25% · massimo
+const settings = { ...DEFAULT_SETTINGS } // 20,00 €/h · 8:00-20:00 +25% · max 8h +25% · maximum
 
-const S = (id, oraInizio, oraFine, luogo = 'Studio', mansione = 'P', data = '2026-10-07') =>
-  ({ id, data, oraInizio, oraFine, luogo, mansione })
+const S = (id, startTime, endTime, location = 'Site', task = 'P', date = '2026-10-07') =>
+  ({ id, date, startTime, endTime, location, task })
 
-describe('tempo', () => {
-  it('calcola una sessione normale', () => {
-    expect(durataMin(S('a', '09:00', '17:00'))).toBe(480)
+describe('time', () => {
+  it('computes a plain session', () => {
+    expect(durationMin(S('a', '09:00', '17:00'))).toBe(480)
   })
-  it('gestisce lo scavallamento della mezzanotte', () => {
-    expect(durataMin(S('a', '19:30', '01:00'))).toBe(330)
+  it('handles crossing midnight', () => {
+    expect(durationMin(S('a', '19:30', '01:00'))).toBe(330)
     expect(span(S('a', '22:00', '02:00'))).toEqual([1320, 1560])
   })
-  it('tratta 00:00-00:00 come 24 ore, non come 0', () => {
-    expect(durataMin(S('a', '00:00', '00:00'))).toBe(1440)
+  it('treats 00:00-00:00 as 24 hours, not zero', () => {
+    expect(durationMin(S('a', '00:00', '00:00'))).toBe(1440)
   })
-  it('formatta le ore decimali', () => {
-    expect(oreDecimali(480)).toBe('8')
-    expect(oreDecimali(510)).toBe('8,5')
-    expect(oreDecimali(255)).toBe('4,25')
+  it('formats decimal hours', () => {
+    expect(decimalHours(480)).toBe('8')
+    expect(decimalHours(510)).toBe('8,5')
+    expect(decimalHours(255)).toBe('4,25')
   })
-  it('conosce la lunghezza dei mesi', () => {
-    expect(giorniDelMese('2026-02').length).toBe(28)
-    expect(giorniDelMese('2024-02').length).toBe(29)
-    expect(giorniDelMese('2026-10').length).toBe(31)
-  })
-})
-
-describe('denaro', () => {
-  it('converte avanti e indietro senza perdere centesimi', () => {
-    expect(aCentesimi('20,50')).toBe(2050)
-    expect(aCentesimi('20.5')).toBe(2050)
-    expect(daCentesimi(2050)).toBe('20,50')
-    expect(euro(118000)).toBe('1.180,00 €')
-  })
-  it('non soffre dell\'errore dei float', () => {
-    // 0.1 + 0.2 !== 0.3 in virgola mobile; in centesimi è esatto
-    expect(aCentesimi('0,10') + aCentesimi('0,20')).toBe(aCentesimi('0,30'))
+  it('knows how long months are', () => {
+    expect(daysOfMonth('2026-02').length).toBe(28)
+    expect(daysOfMonth('2024-02').length).toBe(29)
+    expect(daysOfMonth('2026-10').length).toBe(31)
   })
 })
 
-describe('fasce orarie', () => {
-  it('riconosce dentro e fuori fascia', () => {
-    expect(inFascia(9 * 60, imp)).toBe(true)
-    expect(inFascia(7 * 60 + 59, imp)).toBe(false)
-    expect(inFascia(20 * 60, imp)).toBe(false)   // 20:00 è già fuori
-    expect(inFascia(19 * 60 + 59, imp)).toBe(true)
+describe('money', () => {
+  it('round-trips without losing cents', () => {
+    expect(toCents('20,50')).toBe(2050)
+    expect(toCents('20.5')).toBe(2050)
+    expect(fromCents(2050)).toBe('20,50')
+    expect(formatEuro(118000)).toBe('1.180,00 €')
   })
-  it('gestisce una fascia che scavalca la mezzanotte', () => {
-    const notturna = { ...imp, fasciaInizio: '22:00', fasciaFine: '06:00' }
-    expect(inFascia(23 * 60, notturna)).toBe(true)
-    expect(inFascia(2 * 60, notturna)).toBe(true)
-    expect(inFascia(12 * 60, notturna)).toBe(false)
-  })
-  it('fascia inizio === fine significa nessun fuori fascia', () => {
-    const sempre = { ...imp, fasciaInizio: '00:00', fasciaFine: '00:00' }
-    expect(inFascia(3 * 60, sempre)).toBe(true)
+  it('does not suffer from float error', () => {
+    // 0.1 + 0.2 !== 0.3 in floating point; in cents it is exact
+    expect(toCents('0,10') + toCents('0,20')).toBe(toCents('0,30'))
   })
 })
 
-describe('combinazione delle maggiorazioni', () => {
-  const flags = { fuoriFascia: true, straordinario: true }
-  it('massimo: non si cumulano', () => {
-    expect(maggiorazione(flags, { ...imp, cumulo: 'massimo' })).toBe(25)
+describe('time bands', () => {
+  it('tells inside from outside the band', () => {
+    expect(inBand(9 * 60, settings)).toBe(true)
+    expect(inBand(7 * 60 + 59, settings)).toBe(false)
+    expect(inBand(20 * 60, settings)).toBe(false)   // 20:00 is already outside
+    expect(inBand(19 * 60 + 59, settings)).toBe(true)
   })
-  it('somma: si addizionano', () => {
-    expect(maggiorazione(flags, { ...imp, cumulo: 'somma' })).toBe(50)
+  it('handles a band crossing midnight', () => {
+    const nightly = { ...settings, bandStart: '22:00', bandEnd: '06:00' }
+    expect(inBand(23 * 60, nightly)).toBe(true)
+    expect(inBand(2 * 60, nightly)).toBe(true)
+    expect(inBand(12 * 60, nightly)).toBe(false)
   })
-  it('composto: si moltiplicano', () => {
-    expect(maggiorazione(flags, { ...imp, cumulo: 'composto' })).toBe(56.25)
+  it('treats start === end as no out-of-band hours', () => {
+    const always = { ...settings, bandStart: '00:00', bandEnd: '00:00' }
+    expect(inBand(3 * 60, always)).toBe(true)
   })
 })
 
-describe('calcolo del giorno', () => {
-  it('giornata piena dentro fascia e sotto soglia: tutto base', () => {
-    const g = calcolaGiorno([S('a', '09:00', '17:00')], imp)
-    expect(g.minutiTotali).toBe(480)
-    expect(g.minutiStraordinari).toBe(0)
-    expect(g.minutiFuoriFascia).toBe(0)
-    expect(g.totaleCent).toBe(16000)        // 8 h × 20,00
-    expect(g.segmenti).toHaveLength(1)
+describe('combining surcharges', () => {
+  const flags = { outOfBand: true, overtime: true }
+  it('maximum: they do not stack', () => {
+    expect(surcharge(flags, { ...settings, combination: 'maximum' })).toBe(25)
+  })
+  it('sum: they add up', () => {
+    expect(surcharge(flags, { ...settings, combination: 'sum' })).toBe(50)
+  })
+  it('compound: they multiply', () => {
+    expect(surcharge(flags, { ...settings, combination: 'compound' })).toBe(56.25)
+  })
+})
+
+describe('day computation', () => {
+  it('a full day inside the band and under the threshold is all at base rate', () => {
+    const day = computeDay([S('a', '09:00', '17:00')], settings)
+    expect(day.totalMinutes).toBe(480)
+    expect(day.overtimeMinutes).toBe(0)
+    expect(day.outOfBandMinutes).toBe(0)
+    expect(day.totalCents).toBe(16000)        // 8 h × 20,00
+    expect(day.segments).toHaveLength(1)
   })
 
-  it('esattamente alla soglia non scatta lo straordinario', () => {
-    const g = calcolaGiorno([S('a', '09:00', '17:00')], imp)
-    expect(g.minutiStraordinari).toBe(0)
+  it('exactly at the threshold does not trigger overtime', () => {
+    const day = computeDay([S('a', '09:00', '17:00')], settings)
+    expect(day.overtimeMinutes).toBe(0)
   })
 
-  it('un minuto oltre la soglia sì', () => {
-    const g = calcolaGiorno([S('a', '09:00', '17:01')], imp)
-    expect(g.minutiStraordinari).toBe(1)
+  it('one minute past the threshold does', () => {
+    const day = computeDay([S('a', '09:00', '17:01')], settings)
+    expect(day.overtimeMinutes).toBe(1)
   })
 
-  it('ore prima delle 8:00 sono fuori fascia', () => {
-    const g = calcolaGiorno([S('a', '05:00', '13:00')], imp)
-    expect(g.minutiFuoriFascia).toBe(180)   // 5:00-8:00
-    expect(g.minutiStraordinari).toBe(0)
-    // 3 h a +25% (25,00) + 5 h base (20,00)
-    expect(g.totaleCent).toBe(3 * 2500 + 5 * 2000)
+  it('hours before 8:00 are out of band', () => {
+    const day = computeDay([S('a', '05:00', '13:00')], settings)
+    expect(day.outOfBandMinutes).toBe(180)   // 5:00-8:00
+    expect(day.overtimeMinutes).toBe(0)
+    // 3 h at +25% (25,00) + 5 h at base (20,00)
+    expect(day.totalCents).toBe(3 * 2500 + 5 * 2000)
   })
 
-  it('la soglia giornaliera attraversa due sessioni separate', () => {
-    const g = calcolaGiorno([
-      S('a', '09:00', '17:00', 'Luogo A'),   // 8 h → esaurisce la soglia
-      S('b', '19:30', '23:30', 'Luogo B'),                // 4 h → tutte straordinario
-    ], imp)
-    expect(g.minutiTotali).toBe(720)
-    expect(g.minutiStraordinari).toBe(240)
-    // della seconda sessione, 19:30-20:00 è straordinario ma dentro fascia,
-    // 20:00-23:30 è straordinario E fuori fascia
-    const fuori = g.segmenti.filter(s => s.fuoriFascia)
-    expect(fuori.reduce((n, s) => n + s.minuti, 0)).toBe(210)
+  it('the daily threshold cuts across two separate sessions', () => {
+    const day = computeDay([
+      S('a', '09:00', '17:00', 'Site A'),   // 8 h → uses up the threshold
+      S('b', '19:30', '23:30', 'Site B'),   // 4 h → all overtime
+    ], settings)
+    expect(day.totalMinutes).toBe(720)
+    expect(day.overtimeMinutes).toBe(240)
+    // within the second session, 19:30-20:00 is overtime but inside the band,
+    // 20:00-23:30 is both overtime and out of band
+    const outside = day.segments.filter(s => s.outOfBand)
+    expect(outside.reduce((n, s) => n + s.minutes, 0)).toBe(210)
   })
 
-  it('con cumulo "massimo" straordinario+fuori fascia resta a +25%', () => {
-    const g = calcolaGiorno([
+  it('with "maximum" combination, overtime plus out of band stays at +25%', () => {
+    const day = computeDay([
       S('a', '09:00', '17:00'),
       S('b', '20:00', '22:00'),
-    ], imp)
-    const seg = g.segmenti.find(s => s.straordinario && s.fuoriFascia)
-    expect(seg.magg).toBe(25)
-    expect(g.totaleCent).toBe(8 * 2000 + 2 * 2500)
+    ], settings)
+    const segment = day.segments.find(s => s.overtime && s.outOfBand)
+    expect(segment.surcharge).toBe(25)
+    expect(day.totalCents).toBe(8 * 2000 + 2 * 2500)
   })
 
-  it('con cumulo "somma" la stessa fascia vale +50%', () => {
-    const impS = { ...imp, cumulo: 'somma' }
-    const g = calcolaGiorno([
+  it('with "sum" combination, the same stretch is worth +50%', () => {
+    const summed = { ...settings, combination: 'sum' }
+    const day = computeDay([
       S('a', '09:00', '17:00'),
       S('b', '20:00', '22:00'),
-    ], impS)
-    const seg = g.segmenti.find(s => s.straordinario && s.fuoriFascia)
-    expect(seg.magg).toBe(50)
-    expect(g.totaleCent).toBe(8 * 2000 + 2 * 3000)
+    ], summed)
+    const segment = day.segments.find(s => s.overtime && s.outOfBand)
+    expect(segment.surcharge).toBe(50)
+    expect(day.totalCents).toBe(8 * 2000 + 2 * 3000)
   })
 
-  it('sessione che scavalca la mezzanotte resta nel giorno di inizio', () => {
-    const g = calcolaGiorno([S('a', '18:00', '01:00')], imp)
-    expect(g.minutiTotali).toBe(420)
-    // 18:00-20:00 in fascia (120), 20:00-01:00 fuori fascia (300)
-    expect(g.minutiFuoriFascia).toBe(300)
+  it('a session crossing midnight stays in its starting day', () => {
+    const day = computeDay([S('a', '18:00', '01:00')], settings)
+    expect(day.totalMinutes).toBe(420)
+    // 18:00-20:00 inside the band (120), 20:00-01:00 outside (300)
+    expect(day.outOfBandMinutes).toBe(300)
   })
 
-  it('segnala le sessioni sovrapposte senza alterarle', () => {
-    const g = calcolaGiorno([
+  it('reports overlapping sessions without altering them', () => {
+    const day = computeDay([
       S('a', '09:00', '13:00'),
       S('b', '12:00', '16:00'),
-    ], imp)
-    expect(g.sovrapposizioni).toHaveLength(1)
-    expect(g.minutiTotali).toBe(480)   // le ore vengono comunque contate entrambe
+    ], settings)
+    expect(day.overlaps).toHaveLength(1)
+    expect(day.totalMinutes).toBe(480)   // both stretches are still counted
   })
 
-  it('un giorno vuoto non esplode', () => {
-    const g = calcolaGiorno([], imp)
-    expect(g.minutiTotali).toBe(0)
-    expect(g.totaleCent).toBe(0)
+  it('an empty day does not blow up', () => {
+    const day = computeDay([], settings)
+    expect(day.totalMinutes).toBe(0)
+    expect(day.totalCents).toBe(0)
   })
 })
 
-describe('periodo', () => {
-  const giorni = [
-    { data: '2026-10-07', sessioni: [S('a', '09:00', '17:00', 'Luogo A', 'P', '2026-10-07')] },
-    { data: '2026-10-10', sessioni: [S('b', '05:00', '13:00', 'Luogo B', 'T', '2026-10-10')] },
-    { data: '2026-10-21', sessioni: [
-      S('c', '09:00', '17:00', 'Luogo A', 'P', '2026-10-21'),
-      S('d', '19:30', '23:30', 'Luogo B', 'P', '2026-10-21'),
+describe('period', () => {
+  const days = [
+    { date: '2026-10-07', sessions: [S('a', '09:00', '17:00', 'Site A', 'P', '2026-10-07')] },
+    { date: '2026-10-10', sessions: [S('b', '05:00', '13:00', 'Site B', 'T', '2026-10-10')] },
+    { date: '2026-10-21', sessions: [
+      S('c', '09:00', '17:00', 'Site A', 'P', '2026-10-21'),
+      S('d', '19:30', '23:30', 'Site B', 'P', '2026-10-21'),
     ] },
   ]
 
-  it('aggrega ore e compenso', () => {
-    const p = calcolaPeriodo(giorni, imp)
-    expect(p.minutiTotali).toBe(480 + 480 + 720)
-    expect(p.giorni).toHaveLength(3)
-    expect(p.perLuogo.map(l => l.luogo).sort()).toEqual(['Luogo A', 'Luogo B'])
+  it('aggregates hours and pay', () => {
+    const period = computePeriod(days, settings)
+    expect(period.totalMinutes).toBe(480 + 480 + 720)
+    expect(period.days).toHaveLength(3)
+    expect(period.byLocation.map(l => l.location).sort()).toEqual(['Site A', 'Site B'])
   })
 
-  it('ignora i giorni senza sessioni', () => {
-    const p = calcolaPeriodo([...giorni, { data: '2026-10-09', sessioni: [] }], imp)
-    expect(p.giorni).toHaveLength(3)
+  it('skips days without sessions', () => {
+    const period = computePeriod([...days, { date: '2026-10-09', sessions: [] }], settings)
+    expect(period.days).toHaveLength(3)
   })
 })
 
-describe('elenco ore da copiare', () => {
-  it('riproduce il formato richiesto', () => {
-    const testo = elencoOre([
-      { data: '2026-10-07', sessioni: [S('a', '09:00', '17:00', 'Luogo A', 'P', '2026-10-07')] },
+describe('hours list for copying', () => {
+  it('reproduces the required format', () => {
+    const text = hoursList([
+      { date: '2026-10-07', sessions: [S('a', '09:00', '17:00', 'Site A', 'P', '2026-10-07')] },
     ])
-    expect(testo).toBe(
-      '07/10/2026 (Luogo A)\n' +
+    expect(text).toBe(
+      '07/10/2026 (Site A)\n' +
       'Ore lavorate: 8 (9:00-17:00)\n' +
       'Mansione: P'
     )
   })
 
-  it('unisce più sessioni dello stesso giorno con il +', () => {
-    const testo = elencoOre([
-      { data: '2026-10-21', sessioni: [
-        S('c', '09:00', '17:00', 'Luogo A', 'P', '2026-10-21'),
-        S('d', '19:30', '23:30', 'Luogo B', 'P', '2026-10-21'),
+  it('joins several sessions of the same day with a plus', () => {
+    const text = hoursList([
+      { date: '2026-10-21', sessions: [
+        S('c', '09:00', '17:00', 'Site A', 'P', '2026-10-21'),
+        S('d', '19:30', '23:30', 'Site B', 'P', '2026-10-21'),
       ] },
     ])
-    expect(testo).toBe(
-      '21/10/2026 (Luogo A + Luogo B)\n' +
+    expect(text).toBe(
+      '21/10/2026 (Site A + Site B)\n' +
       'Ore lavorate: 12 (9:00-17:00 + 19:30-23:30)\n' +
       'Mansione: P'
     )
   })
 
-  it('ordina le sessioni per orario di inizio', () => {
-    const testo = elencoOre([
-      { data: '2026-10-21', sessioni: [
-        S('d', '19:30', '23:30', 'Luogo B', 'P', '2026-10-21'),
-        S('c', '09:00', '17:00', 'Luogo A', 'P', '2026-10-21'),
+  it('sorts sessions by start time', () => {
+    const text = hoursList([
+      { date: '2026-10-21', sessions: [
+        S('d', '19:30', '23:30', 'Site B', 'P', '2026-10-21'),
+        S('c', '09:00', '17:00', 'Site A', 'P', '2026-10-21'),
       ] },
     ])
-    expect(testo).toContain('(Luogo A + Luogo B)')
-    expect(testo).toContain('(9:00-17:00 + 19:30-23:30)')
+    expect(text).toContain('(Site A + Site B)')
+    expect(text).toContain('(9:00-17:00 + 19:30-23:30)')
   })
 })

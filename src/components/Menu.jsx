@@ -1,25 +1,25 @@
-import { IconaOggi, IconaExport, IconaImpostazioni } from './Icone.jsx'
+import { TodayIcon, ExportIcon, SettingsIcon } from './Icons.jsx'
 
-const VOCI = [
-  { id: 'giorno', etichetta: 'Giornata', Icona: IconaOggi },
-  { id: 'export', etichetta: 'Export e report', Icona: IconaExport },
-  { id: 'impostazioni', etichetta: 'Impostazioni', Icona: IconaImpostazioni },
+const ITEMS = [
+  { id: 'day', label: 'Giornata', Icon: TodayIcon },
+  { id: 'export', label: 'Export e report', Icon: ExportIcon },
+  { id: 'settings', label: 'Impostazioni', Icon: SettingsIcon },
 ]
 
-export default function Menu({ vista, onVista, onChiudi }) {
+export default function Menu({ view, onView, onClose }) {
   return (
     <>
-      <div className="velo" onClick={onChiudi} />
+      <div className="scrim" onClick={onClose} />
       <nav className="drawer">
-        <div className="drawer-titolo">Ore lavorate</div>
-        {VOCI.map(({ id, etichetta, Icona }) => (
+        <div className="drawer-title">Ore lavorate</div>
+        {ITEMS.map(({ id, label, Icon }) => (
           <button
             key={id}
-            className={`voce${vista === id ? ' attiva' : ''}`}
-            onClick={() => { onVista(id); onChiudi() }}
+            className={`drawer-item${view === id ? ' active' : ''}`}
+            onClick={() => { onView(id); onClose() }}
           >
-            <Icona width={19} height={19} />
-            {etichetta}
+            <Icon width={19} height={19} />
+            {label}
           </button>
         ))}
       </nav>

@@ -1,82 +1,82 @@
-// ─── Persistenza locale (IndexedDB) ───────────────────────────────────────
-// I dati non lasciano mai il dispositivo. Nessun server, nessun account.
-// Il rovescio della medaglia: se cancelli i dati del sito o cambi telefono
-// spariscono. Per questo l'app insiste sul backup JSON.
+// ─── Local persistence (IndexedDB) ────────────────────────────────────────
+// Data never leaves the device. No server, no account.
+// The flip side: clearing site data or switching phones wipes it. That is why
+// the app insists on the JSON backup.
 
 const DB_NAME = 'ore-lavorate'
 const DB_VERSION = 1
-const SESSIONI = 'sessioni'
+const SESSIONS = 'sessions'
 const CONFIG = 'config'
 
-let _db = null
+let cachedDb = null
 
-function apri() {
-  if (_db) return Promise.resolve(_db)
+function open() {
+  if (cachedDb) return Promise.resolve(cachedDb)
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION)
-    req.onupgradeneeded = () => {
-      const db = req.result
-      if (!db.objectStoreNames.contains(SESSIONI)) {
-        const store = db.createObjectStore(SESSIONI, { keyPath: 'id' })
-        store.createIndex('data', 'data')
+    const request = indexedDB.open(DB_NAME, DB_VERSION)
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(SESSIONS)) {
+        const store = db.createObjectStore(SESSIONS, { keyPath: 'id' })
+        store.createIndex('date', 'date')
       }
       if (!db.objectStoreNames.contains(CONFIG)) {
         db.createObjectStore(CONFIG)
       }
     }
-    req.onsuccess = () => { _db = req.result; resolve(_db) }
-    req.onerror = () => reject(req.error)
+    request.onsuccess = () => { cachedDb = request.result; resolve(cachedDb) }
+    request.onerror = () => reject(request.error)
   })
 }
 
-function tx(store, modo, fn) {
-  return apri().then(db => new Promise((resolve, reject) => {
-    const t = db.transaction(store, modo)
-    const req = fn(t.objectStore(store))
-    t.oncomplete = () => resolve(req ? req.result : undefined)
-    t.onerror = () => reject(t.error)
-    t.onabort = () => reject(t.error)
+function transaction(storeName, mode, fn) {
+  return open().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, mode)
+    const request = fn(tx.objectStore(storeName))
+    tx.oncomplete = () => resolve(request ? request.result : undefined)
+    tx.onerror = () => reject(tx.error)
+    tx.onabort = () => reject(tx.error)
   }))
 }
 
-export const nuovoId = () =>
+export const newId = () =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
-export const tutteLeSessioni = () => tx(SESSIONI, 'readonly', s => s.getAll())
+export const allSessions = () => transaction(SESSIONS, 'readonly', s => s.getAll())
 
-export const salvaSessione = (sessione) =>
-  tx(SESSIONI, 'readwrite', s => s.put(sessione))
+export const saveSession = (session) =>
+  transaction(SESSIONS, 'readwrite', s => s.put(session))
 
-export const eliminaSessione = (id) =>
-  tx(SESSIONI, 'readwrite', s => s.delete(id))
+export const deleteSession = (id) =>
+  transaction(SESSIONS, 'readwrite', s => s.delete(id))
 
-export const leggiConfig = (chiave) =>
-  tx(CONFIG, 'readonly', s => s.get(chiave))
+export const readConfig = (key) =>
+  transaction(CONFIG, 'readonly', s => s.get(key))
 
-export const scriviConfig = (chiave, valore) =>
-  tx(CONFIG, 'readwrite', s => s.put(valore, chiave))
+export const writeConfig = (key, value) =>
+  transaction(CONFIG, 'readwrite', s => s.put(value, key))
 
-/** Sostituisce l'intero contenuto (import di un backup) */
-export async function ripristina({ sessioni = [], impostazioni = null }) {
-  const db = await apri()
+/** Replaces the entire contents (restoring a backup) */
+export async function restore({ sessions = [], settings = null }) {
+  const db = await open()
   await new Promise((resolve, reject) => {
-    const t = db.transaction([SESSIONI, CONFIG], 'readwrite')
-    const store = t.objectStore(SESSIONI)
+    const tx = db.transaction([SESSIONS, CONFIG], 'readwrite')
+    const store = tx.objectStore(SESSIONS)
     store.clear()
-    for (const s of sessioni) store.put(s)
-    if (impostazioni) t.objectStore(CONFIG).put(impostazioni, 'impostazioni')
-    t.oncomplete = resolve
-    t.onerror = () => reject(t.error)
+    for (const session of sessions) store.put(session)
+    if (settings) tx.objectStore(CONFIG).put(settings, 'settings')
+    tx.oncomplete = resolve
+    tx.onerror = () => reject(tx.error)
   })
 }
 
 /**
- * Chiede al browser di non eliminare i dati sotto pressione di spazio.
- * Su iOS non è garantito: il backup resta l'unica vera rete di sicurezza.
+ * Asks the browser not to evict the data under storage pressure.
+ * Not guaranteed on iOS: the backup remains the only real safety net.
  */
-export async function richiediPersistenza() {
+export async function requestPersistence() {
   try {
     if (navigator.storage?.persist) return await navigator.storage.persist()
-  } catch { /* ignora */ }
+  } catch { /* ignore */ }
   return false
 }

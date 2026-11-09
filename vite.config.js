@@ -2,8 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// Su GitHub Pages il sito vive in https://<utente>.github.io/<repo>/
-// Cambia BASE_PATH (o questa costante) se il repo ha un altro nome.
+// On GitHub Pages the site lives at https://<user>.github.io/<repo>/
+// The deploy workflow sets BASE_PATH from the repository name; this default
+// only applies to local builds.
 const base = process.env.BASE_PATH || '/ore-lavorate/'
 
 export default defineConfig({
